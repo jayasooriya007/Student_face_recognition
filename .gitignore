@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+.venv/
+
+# VS Code
+.vscode/
+
+# Environment Variables
+.env
+
+# Python Cache
+.pytest_cache/
+
+# Logs
+*.log
+
+# Dataset
+dataset/frames/
+dataset/processed/
+
+# Uploads
+uploads/
+
+# FAISS
+*.index
+*.npy
+
+# Database
+*.db
