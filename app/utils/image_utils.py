@@ -11,14 +11,14 @@ import cv2
 def extract_frames(
     video_path: Path,
     output_folder: Path,
-    frame_interval: int = 5
+    frame_interval: int = 10
 ) -> int:
     """
     Extracts frames from a video.
 
     Args:
-        video_path: Path to the input video.
-        output_folder: Folder where extracted frames are saved.
+        video_path: Path to input video.
+        output_folder: Folder where frames are saved.
         frame_interval: Save one frame every N frames.
 
     Returns:
@@ -26,19 +26,27 @@ def extract_frames(
     """
 
     if not video_path.exists():
-        raise FileNotFoundError(f"Video not found: {video_path}")
+        raise FileNotFoundError(
+            f"Video not found: {video_path}"
+        )
 
-    output_folder.mkdir(parents=True, exist_ok=True)
+    output_folder.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
     cap = cv2.VideoCapture(str(video_path))
 
     if not cap.isOpened():
-        raise ValueError("Unable to open video.")
+        raise ValueError(
+            "Unable to open video."
+        )
 
     frame_count = 0
     saved_count = 0
 
     while True:
+
         success, frame = cap.read()
 
         if not success:
@@ -46,9 +54,21 @@ def extract_frames(
 
         if frame_count % frame_interval == 0:
 
-            filename = output_folder / f"frame_{saved_count:04d}.jpg"
+            # Resize frame
+            frame = resize_image(
+                frame,
+                width=640
+            )
 
-            cv2.imwrite(str(filename), frame)
+            filename = (
+                output_folder /
+                f"frame_{saved_count:04d}.jpg"
+            )
+
+            cv2.imwrite(
+                str(filename),
+                frame
+            )
 
             saved_count += 1
 

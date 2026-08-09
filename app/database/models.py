@@ -1,12 +1,18 @@
 """
 models.py
 
-SQLAlchemy ORM models for the Identix project.
+SQLAlchemy ORM Models for the Identix
+AI Powered Student Identification System.
 """
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Integer,
+    String
+)
 
 from app.database.database import Base
 
@@ -18,35 +24,44 @@ class Student(Base):
 
     __tablename__ = "students"
 
+    # ======================================================
+    # Primary Key
+    # ======================================================
+
     id = Column(
         Integer,
         primary_key=True,
-        index=True,
-        autoincrement=True
+        autoincrement=True,
+        index=True
     )
 
-    student_id = Column(
+    # ======================================================
+    # Student Information
+    # ======================================================
+
+    register_number = Column(
         String(20),
         unique=True,
         nullable=False,
         index=True
     )
 
-    register_number = Column(
-        String(30),
-        unique=True,
-        nullable=False
-    )
-
-    name = Column(
+    student_name = Column(
         String(100),
         nullable=False
     )
 
     department = Column(
-        String(100),
+        String(50),
         nullable=False
     )
+
+    academic_batch = Column(
+        String(20),
+        nullable=False
+    )
+    # Example:
+    # 2023-2027
 
     year = Column(
         Integer,
@@ -54,46 +69,107 @@ class Student(Base):
     )
 
     section = Column(
-        String(5),
+        String(10),
         nullable=False
     )
 
-    phone = Column(
-        String(15),
-        nullable=False
-    )
+    # ======================================================
+    # Contact Details
+    # ======================================================
 
-    email = Column(
-        String(100),
+    college_email = Column(
+        String(120),
         unique=True,
         nullable=False
     )
 
-    video_path = Column(
-        String(255),
+    personal_email = Column(
+        String(120),
+        unique=True,
         nullable=True
     )
 
-    dataset_path = Column(
-        String(255),
+    phone_number = Column(
+        String(15),
         nullable=True
     )
+
+    # ======================================================
+    # Mentor Details
+    # ======================================================
+
+    mentor_name = Column(
+        String(100),
+        nullable=True
+    )
+
+    mentor_phone = Column(
+        String(15),
+        nullable=True
+    )
+
+    # ======================================================
+    # Face Recognition Data
+    # ======================================================
+
+    video_path = Column(
+        String(500),
+        nullable=False
+    )
+
+    profile_image_path = Column(
+        String(500),
+        nullable=True
+    )
+
+    # ======================================================
+    # Student Status
+    # ======================================================
+
+    status = Column(
+        String(20),
+        nullable=False,
+        default="ACTIVE"
+    )
+    # ACTIVE
+    # ALUMNI
+    # TRANSFERRED
+
+    passed_out_year = Column(
+        Integer,
+        nullable=True
+    )
+
+    # ======================================================
+    # Audit Information
+    # ======================================================
 
     created_at = Column(
         DateTime,
-        default=datetime.utcnow
+        default=datetime.utcnow,
+        nullable=False
     )
 
     updated_at = Column(
         DateTime,
         default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        onupdate=datetime.utcnow,
+        nullable=False
     )
 
+    # ======================================================
+    # Object Representation
+    # ======================================================
+
     def __repr__(self):
+
         return (
             f"<Student("
-            f"student_id='{self.student_id}', "
-            f"name='{self.name}', "
-            f"department='{self.department}')>"
+            f"register_number='{self.register_number}', "
+            f"student_name='{self.student_name}', "
+            f"department='{self.department}', "
+            f"academic_batch='{self.academic_batch}', "
+            f"year='{self.year}', "
+            f"section='{self.section}', "
+            f"status='{self.status}')>"
         )

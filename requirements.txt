@@ -1,33 +1,57 @@
+# ==========================================
+# FastAPI Backend
+# ==========================================
+
 fastapi
-
 uvicorn
+python-multipart
 
-streamlit
+# ==========================================
+# Database
+# ==========================================
+
+sqlalchemy
+pymysql
+python-dotenv
+
+# ==========================================
+# Data Validation
+# ==========================================
+
+pydantic
+email-validator
+
+# ==========================================
+# AI / Face Recognition
+# ==========================================
+
+insightface
+onnx
+onnxruntime
+faiss-cpu
+
+# ==========================================
+# Computer Vision
+# ==========================================
 
 opencv-python
+Pillow
+
+# ==========================================
+# Numerical Computing
+# ==========================================
 
 numpy
 
-pandas
+# ==========================================
+# Streamlit Frontend
+# ==========================================
 
-scikit-learn
+streamlit
+requests
 
-insightface
-
-onnxruntime
-
-faiss-cpu
-
-sqlalchemy
-
-psycopg2-binary
-
-pillow
-
-python-multipart
-
-pydantic
-
-python-dotenv
+# ==========================================
+# Progress Bar
+# ==========================================
 
 tqdm

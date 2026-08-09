@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.database.database import Base, engine, get_db
 from app.database.schema import StudentCreate
-from app.services.identify_service import IdentifyService
-from app.services.register_service import RegisterService
+from app.services.identify_services import IdentifyService
+from app.services.register_services import RegisterService
 
 # ----------------------------------
 # Create Database Tables
