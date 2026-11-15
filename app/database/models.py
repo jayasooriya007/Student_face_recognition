@@ -80,7 +80,7 @@ class Student(Base):
     college_email = Column(
         String(120),
         unique=True,
-        nullable=False
+        nullable=True
     )
 
     personal_email = Column(
@@ -90,6 +90,20 @@ class Student(Base):
     )
 
     phone_number = Column(
+        String(15),
+        nullable=True
+    )
+
+    # ======================================================
+    # Parent / Guardian Details
+    # ======================================================
+
+    parent_guardian_name = Column(
+        String(100),
+        nullable=True
+    )
+
+    parent_guardian_mobile = Column(
         String(15),
         nullable=True
     )

@@ -2,23 +2,7 @@
 frontend.py
 
 Streamlit frontend for Identix.
-
-Behavior:
-
-1. High-confidence match + database record exists
-   -> Show register number and student details.
-
-2. High-confidence match + database record does not exist
-   -> Show the FAISS register number.
-   -> Inform the user that student details are not
-      available in the database yet.
-
-3. Similarity below threshold
-   -> Do NOT show the candidate register number.
-   -> Show a useful low-confidence message.
-
-4. No face / no match
-   -> Show an appropriate message.
+AI Powered Student Identification System.
 """
 
 import requests
@@ -151,6 +135,20 @@ if st.button(
                         "Identification request failed."
                     )
 
+                    try:
+
+                        error_data = response.json()
+
+                        if "detail" in error_data:
+
+                            st.write(
+                                error_data["detail"]
+                            )
+
+                    except Exception:
+
+                        pass
+
                     st.info(
                         "Please try again."
                     )
@@ -194,38 +192,413 @@ if st.button(
                     )
 
                     # ==================================================
+                    # GROUP PHOTO IDENTIFICATION
+                    #
+                    # Display information for every identified face.
+                    # ==================================================
+
+                    students = result.get("results")
+
+                    total_faces = result.get("total_faces")
+                    identified_students = result.get(
+                        "identified_faces"
+                    )
+
+                    if isinstance(students, list):
+
+                        if total_faces is not None:
+                            st.success(
+                                f"Processed {total_faces} face(s). "
+                                f"Identified "
+                                f"{identified_students if identified_students is not None else len(students)} "
+                                f"student(s)."
+                            )
+                        else:
+                            st.success(
+                                f"Identified {len(students)} student(s)."
+                            )
+
+                        # --------------------------------------------------
+                        # Display every identified student
+                        # --------------------------------------------------
+
+                        for index, face_result in enumerate(
+                            students,
+                            start=1
+                        ):
+
+                            # --------------------------------------------------
+                            # Some backend responses may contain the
+                            # student data directly, while others may
+                            # contain it inside a "student" object.
+                            # --------------------------------------------------
+
+                            if isinstance(face_result, dict):
+
+                                student_data = face_result.get(
+                                    "student"
+                                )
+
+                                if not isinstance(
+                                    student_data,
+                                    dict
+                                ):
+                                    student_data = face_result
+
+                                face_register_number = (
+                                    face_result.get(
+                                        "register_number"
+                                    )
+                                    or student_data.get(
+                                        "register_number"
+                                    )
+                                )
+
+                                face_best_similarity = (
+                                    face_result.get(
+                                        "best_similarity"
+                                    )
+                                )
+
+                                face_similarity = (
+                                    face_result.get(
+                                        "similarity"
+                                    )
+                                )
+
+                                face_message = face_result.get(
+                                    "message",
+                                    ""
+                                )
+
+                                face_identified = face_result.get(
+                                    "identified",
+                                    True
+                                )
+
+                            else:
+
+                                student_data = {}
+
+                                face_register_number = None
+                                face_best_similarity = None
+                                face_similarity = None
+                                face_message = ""
+                                face_identified = False
+
+                            st.markdown(
+                                "---"
+                            )
+
+                            st.markdown(
+                                f"### Face {index}"
+                            )
+
+                            # --------------------------------------------------
+                            # Unknown / unsuccessful face
+                            # --------------------------------------------------
+
+                            if (
+                                not face_identified
+                                or not student_data
+                            ):
+
+                                st.warning(
+                                    "Student could not be "
+                                    "identified for this face."
+                                )
+
+                                if face_message:
+                                    st.write(
+                                        face_message
+                                    )
+
+                                if (
+                                    face_best_similarity
+                                    is not None
+                                ):
+                                    st.write(
+                                        "Similarity: "
+                                        f"{face_best_similarity:.3f}"
+                                    )
+
+                                elif (
+                                    face_similarity
+                                    is not None
+                                ):
+                                    st.write(
+                                        "Similarity: "
+                                        f"{face_similarity:.3f}"
+                                    )
+
+                                continue
+
+                            # --------------------------------------------------
+                            # Register Number
+                            # --------------------------------------------------
+
+                            student_register_number = (
+                                face_register_number
+                                or student_data.get(
+                                    "register_number"
+                                )
+                            )
+
+                            if student_register_number:
+
+                                st.markdown(
+                                    "### Register Number"
+                                )
+
+                                st.markdown(
+                                    f"# "
+                                    f"{student_register_number.upper()}"
+                                )
+
+                            # --------------------------------------------------
+                            # Similarity
+                            # --------------------------------------------------
+
+                            if (
+                                face_best_similarity
+                                is not None
+                            ):
+
+                                st.write(
+                                    "Face Similarity: "
+                                    f"{face_best_similarity:.3f}"
+                                )
+
+                            elif (
+                                face_similarity
+                                is not None
+                            ):
+
+                                st.write(
+                                    "Face Similarity: "
+                                    f"{face_similarity:.3f}"
+                                )
+
+                            # ==================================================
+                            # Student Details
+                            # ==================================================
+
+                            st.markdown(
+                                "### Student Details"
+                            )
+
+                            # --------------------------------------------------
+                            # Name
+                            # --------------------------------------------------
+
+                            if student_data.get(
+                                "student_name"
+                            ):
+
+                                st.write(
+                                    f"**Name:** "
+                                    f"{student_data.get('student_name')}"
+                                )
+
+                            # --------------------------------------------------
+                            # Department
+                            # --------------------------------------------------
+
+                            if student_data.get(
+                                "department"
+                            ):
+
+                                st.write(
+                                    f"**Department:** "
+                                    f"{student_data.get('department')}"
+                                )
+
+                            # --------------------------------------------------
+                            # Academic Batch
+                            # --------------------------------------------------
+
+                            if student_data.get(
+                                "academic_batch"
+                            ):
+
+                                st.write(
+                                    f"**Academic Batch:** "
+                                    f"{student_data.get('academic_batch')}"
+                                )
+
+                            # --------------------------------------------------
+                            # Year
+                            # --------------------------------------------------
+
+                            if student_data.get(
+                                "year"
+                            ) is not None:
+
+                                st.write(
+                                    f"**Year:** "
+                                    f"{student_data.get('year')}"
+                                )
+
+                            # --------------------------------------------------
+                            # Section
+                            # --------------------------------------------------
+
+                            if student_data.get(
+                                "section"
+                            ):
+
+                                st.write(
+                                    f"**Section:** "
+                                    f"{student_data.get('section')}"
+                                )
+
+                            # --------------------------------------------------
+                            # College Email
+                            # --------------------------------------------------
+
+                            if student_data.get(
+                                "college_email"
+                            ):
+
+                                st.write(
+                                    f"**College Email:** "
+                                    f"{student_data.get('college_email')}"
+                                )
+
+                            # --------------------------------------------------
+                            # Personal Email
+                            # --------------------------------------------------
+
+                            if student_data.get(
+                                "personal_email"
+                            ):
+
+                                st.write(
+                                    f"**Personal Email:** "
+                                    f"{student_data.get('personal_email')}"
+                                )
+
+                            # --------------------------------------------------
+                            # Student Phone
+                            # --------------------------------------------------
+
+                            if student_data.get(
+                                "phone_number"
+                            ):
+
+                                st.write(
+                                    f"**Student Mobile:** "
+                                    f"{student_data.get('phone_number')}"
+                                )
+
+                            # ==================================================
+                            # Parent / Guardian Details
+                            # ==================================================
+
+                            st.markdown(
+                                "### Parent / Guardian Details"
+                            )
+
+                            if student_data.get(
+                                "parent_guardian_name"
+                            ):
+
+                                st.write(
+                                    f"**Parent / Guardian Name:** "
+                                    f"{student_data.get('parent_guardian_name')}"
+                                )
+
+                            if student_data.get(
+                                "parent_guardian_mobile"
+                            ):
+
+                                st.write(
+                                    f"**Parent / Guardian Mobile:** "
+                                    f"{student_data.get('parent_guardian_mobile')}"
+                                )
+
+                            # ==================================================
+                            # Mentor Details
+                            # ==================================================
+
+                            st.markdown(
+                                "### Mentor Details"
+                            )
+
+                            if student_data.get(
+                                "mentor_name"
+                            ):
+
+                                st.write(
+                                    f"**Mentor Name:** "
+                                    f"{student_data.get('mentor_name')}"
+                                )
+
+                            if student_data.get(
+                                "mentor_phone"
+                            ):
+
+                                st.write(
+                                    f"**Mentor Mobile:** "
+                                    f"{student_data.get('mentor_phone')}"
+                                )
+
+                            # ==================================================
+                            # Status
+                            # ==================================================
+
+                            if student_data.get(
+                                "status"
+                            ):
+
+                                st.write(
+                                    f"**Student Status:** "
+                                    f"{student_data.get('status')}"
+                                )
+
+                            # ==================================================
+                            # Recognition Information
+                            # ==================================================
+
+                            if threshold is not None:
+
+                                st.caption(
+                                    f"Required confidence: "
+                                    f"{threshold:.3f}"
+                                )
+
+                    # ==================================================
                     # CASE 1
                     # FULL IDENTIFICATION
                     #
-                    # High confidence + MySQL record exists
+                    # FAISS matched + MySQL record exists
                     # ==================================================
 
-                    if identified:
+                    elif identified and student:
 
                         st.success(
                             "Student identified successfully!"
                         )
 
+                        # --------------------------------------------------
+                        # Register Number
+                        # --------------------------------------------------
+
                         st.markdown(
                             "### Register Number"
                         )
 
-                        # --------------------------------------------------
-                        # Get register number from student object
-                        # --------------------------------------------------
-
-                        if student:
-
-                            register_number = (
-                                student.get(
-                                    "register_number"
-                                )
+                        student_register_number = (
+                            student.get(
+                                "register_number"
                             )
+                            or register_number
+                        )
 
-                        if register_number:
+                        if student_register_number:
 
                             st.markdown(
-                                f"# {register_number}"
+                                f"# {student_register_number.upper()}"
                             )
 
                         # --------------------------------------------------
@@ -250,53 +623,168 @@ if st.button(
                         # Student Details
                         # ==================================================
 
-                        if student:
+                        st.markdown(
+                            "### Student Details"
+                        )
 
-                            st.markdown(
-                                "### Student Details"
+                        # --------------------------------------------------
+                        # Name
+                        # --------------------------------------------------
+
+                        if student.get("student_name"):
+
+                            st.write(
+                                f"**Name:** "
+                                f"{student.get('student_name')}"
                             )
 
-                            if student.get("name"):
+                        # --------------------------------------------------
+                        # Department
+                        # --------------------------------------------------
 
-                                st.write(
-                                    f"**Name:** "
-                                    f"{student.get('name')}"
-                                )
+                        if student.get("department"):
 
-                            if student.get("department"):
-
-                                st.write(
-                                    f"**Department:** "
-                                    f"{student.get('department')}"
-                                )
-
-                            if student.get("year"):
-
-                                st.write(
-                                    f"**Year:** "
-                                    f"{student.get('year')}"
-                                )
-
-                            if student.get("section"):
-
-                                st.write(
-                                    f"**Section:** "
-                                    f"{student.get('section')}"
-                                )
-
-                            if student.get("email"):
-
-                                st.write(
-                                    f"**Email:** "
-                                    f"{student.get('email')}"
-                                )
-
-                        else:
-
-                            st.info(
-                                "Student details are not "
-                                "available in the database yet."
+                            st.write(
+                                f"**Department:** "
+                                f"{student.get('department')}"
                             )
+
+                        # --------------------------------------------------
+                        # Academic Batch
+                        # --------------------------------------------------
+
+                        if student.get("academic_batch"):
+
+                            st.write(
+                                f"**Academic Batch:** "
+                                f"{student.get('academic_batch')}"
+                            )
+
+                        # --------------------------------------------------
+                        # Year
+                        # --------------------------------------------------
+
+                        if student.get("year") is not None:
+
+                            st.write(
+                                f"**Year:** "
+                                f"{student.get('year')}"
+                            )
+
+                        # --------------------------------------------------
+                        # Section
+                        # --------------------------------------------------
+
+                        if student.get("section"):
+
+                            st.write(
+                                f"**Section:** "
+                                f"{student.get('section')}"
+                            )
+
+                        # --------------------------------------------------
+                        # College Email
+                        # --------------------------------------------------
+
+                        if student.get("college_email"):
+
+                            st.write(
+                                f"**College Email:** "
+                                f"{student.get('college_email')}"
+                            )
+
+                        # --------------------------------------------------
+                        # Personal Email
+                        # --------------------------------------------------
+
+                        if student.get("personal_email"):
+
+                            st.write(
+                                f"**Personal Email:** "
+                                f"{student.get('personal_email')}"
+                            )
+
+                        # --------------------------------------------------
+                        # Student Phone
+                        # --------------------------------------------------
+
+                        if student.get("phone_number"):
+
+                            st.write(
+                                f"**Student Mobile:** "
+                                f"{student.get('phone_number')}"
+                            )
+
+                        # ==================================================
+                        # Parent / Guardian Details
+                        # ==================================================
+
+                        st.markdown(
+                            "### Parent / Guardian Details"
+                        )
+
+                        if student.get(
+                            "parent_guardian_name"
+                        ):
+
+                            st.write(
+                                f"**Parent / Guardian Name:** "
+                                f"{student.get('parent_guardian_name')}"
+                            )
+
+                        if student.get(
+                            "parent_guardian_mobile"
+                        ):
+
+                            st.write(
+                                f"**Parent / Guardian Mobile:** "
+                                f"{student.get('parent_guardian_mobile')}"
+                            )
+
+                        # ==================================================
+                        # Mentor Details
+                        # ==================================================
+
+                        st.markdown(
+                            "### Mentor Details"
+                        )
+
+                        if student.get("mentor_name"):
+
+                            st.write(
+                                f"**Mentor Name:** "
+                                f"{student.get('mentor_name')}"
+                            )
+
+                        if student.get("mentor_phone"):
+
+                            st.write(
+                                f"**Mentor Mobile:** "
+                                f"{student.get('mentor_phone')}"
+                            )
+
+                        # ==================================================
+                        # Status
+                        # ==================================================
+
+                        if student.get("status"):
+
+                            st.write(
+                                f"**Student Status:** "
+                                f"{student.get('status')}"
+                            )
+
+                        # ==================================================
+                        # Recognition Information
+                        # ==================================================
+
+                        if threshold is not None:
+
+                            st.caption(
+                                f"Required confidence: "
+                                f"{threshold:.3f}"
+                            )
+
 
                     # ==================================================
                     # CASE 2
@@ -304,22 +792,25 @@ if st.button(
                     # BUT MYSQL RECORD DOES NOT EXIST
                     #
                     # IMPORTANT:
-                    # We DO display the register number here.
+                    # Display the register number.
                     # ==================================================
 
                     elif (
                         "student information was not found"
                         in message.lower()
+                        or
+                        "student information"
+                        in message.lower()
                     ):
-
-                        # --------------------------------------------------
-                        # FAISS successfully found the student
-                        # --------------------------------------------------
 
                         st.success(
                             "Student identified by "
                             "face recognition!"
                         )
+
+                        # --------------------------------------------------
+                        # Register Number
+                        # --------------------------------------------------
 
                         st.markdown(
                             "### Register Number"
@@ -328,7 +819,7 @@ if st.button(
                         if register_number:
 
                             st.markdown(
-                                f"# {register_number}"
+                                f"# {register_number.upper()}"
                             )
 
                         else:
@@ -356,7 +847,7 @@ if st.button(
                             )
 
                         # --------------------------------------------------
-                        # Database message
+                        # Database Information
                         # --------------------------------------------------
 
                         st.info(
@@ -370,6 +861,7 @@ if st.button(
                             "but the student's detailed record "
                             "has not been added to MySQL yet."
                         )
+
 
                     # ==================================================
                     # CASE 3
@@ -386,6 +878,9 @@ if st.button(
                         in message.lower()
                         or
                         "sufficiently similar"
+                        in message.lower()
+                        or
+                        "confidence"
                         in message.lower()
                     ):
 
@@ -404,7 +899,7 @@ if st.button(
                         )
 
                         # --------------------------------------------------
-                        # Useful instructions
+                        # Useful Instructions
                         # --------------------------------------------------
 
                         st.markdown(
@@ -449,6 +944,7 @@ if st.button(
                                 "Required confidence: "
                                 f"{threshold:.3f}"
                             )
+
 
                     # ==================================================
                     # CASE 4

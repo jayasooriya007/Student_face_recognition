@@ -27,10 +27,11 @@ Workflow:
 
 IMPORTANT:
 
-    The stored database contains multiple embeddings
-    for every student.
+    FAISS is responsible for identifying the closest
+    registered face.
 
-    We DO NOT average the stored embeddings.
+    MySQL is responsible for retrieving the student's
+    complete information using the register number.
 """
 
 from pathlib import Path
@@ -43,9 +44,7 @@ from sqlalchemy.orm import Session
 from insightface.utils.face_align import norm_crop
 
 from app.config.settings import SIMILARITY_THRESHOLD
-
 from app.database.models import Student
-
 from app.face.face_engine import FaceEngine
 from app.face.faiss_manager import FAISSManager
 
@@ -58,7 +57,7 @@ class IdentifyService:
     def __init__(self):
 
         # ==================================================
-        # Load InsightFace
+        # Load InsightFace Model
         # ==================================================
 
         self.model = FaceEngine.get_model()
@@ -79,7 +78,7 @@ class IdentifyService:
         )
 
         # ==================================================
-        # FAISS
+        # FAISS Manager
         # ==================================================
 
         self.faiss = FAISSManager()
@@ -96,9 +95,7 @@ class IdentifyService:
         Load uploaded image using OpenCV.
         """
 
-        image_path = Path(
-            image_path
-        )
+        image_path = Path(image_path)
 
         if not image_path.exists():
 
@@ -201,11 +198,9 @@ class IdentifyService:
         """
 
         if image is None:
-
             return None
 
         if face is None:
-
             return None
 
         landmarks = getattr(
@@ -215,7 +210,6 @@ class IdentifyService:
         )
 
         if landmarks is None:
-
             return None
 
         landmarks = np.asarray(
@@ -295,7 +289,7 @@ class IdentifyService:
             )
 
         # --------------------------------------------------
-        # ArcFace recognition model
+        # ArcFace Recognition Model
         # --------------------------------------------------
 
         embedding = (
@@ -355,8 +349,19 @@ class IdentifyService:
         register_number: str,
     ):
         """
-        Retrieve student information from MySQL.
+        Retrieve student information from MySQL
+        using the register number returned by FAISS.
         """
+
+        # --------------------------------------------------
+        # Normalize register number
+        # --------------------------------------------------
+
+        register_number = (
+            str(register_number)
+            .strip()
+            .upper()
+        )
 
         student = (
             db.query(Student)
@@ -380,20 +385,27 @@ class IdentifyService:
         """
         Convert SQLAlchemy Student object
         into API response data.
+
+        Uses the CURRENT Student model fields.
         """
 
         return {
+
+            # ----------------------------------------------
+            # Basic Student Information
+            # ----------------------------------------------
+
             "register_number":
                 student.register_number,
 
-            "student_id":
-                student.student_id,
-
-            "name":
-                student.name,
+            "student_name":
+                student.student_name,
 
             "department":
                 student.department,
+
+            "academic_batch":
+                student.academic_batch,
 
             "year":
                 student.year,
@@ -401,11 +413,48 @@ class IdentifyService:
             "section":
                 student.section,
 
-            "phone":
-                student.phone,
+            # ----------------------------------------------
+            # Contact Information
+            # ----------------------------------------------
 
-            "email":
-                student.email,
+            "college_email":
+                student.college_email,
+
+            "personal_email":
+                student.personal_email,
+
+            "phone_number":
+                student.phone_number,
+
+            # ----------------------------------------------
+            # Parent / Guardian Information
+            # ----------------------------------------------
+
+            "parent_guardian_name":
+                student.parent_guardian_name,
+
+            "parent_guardian_mobile":
+                student.parent_guardian_mobile,
+
+            # ----------------------------------------------
+            # Mentor Information
+            # ----------------------------------------------
+
+            "mentor_name":
+                student.mentor_name,
+
+            "mentor_phone":
+                student.mentor_phone,
+
+            # ----------------------------------------------
+            # Student Status
+            # ----------------------------------------------
+
+            "status":
+                student.status,
+
+            "passed_out_year":
+                student.passed_out_year,
         }
 
     # ======================================================
@@ -419,6 +468,9 @@ class IdentifyService:
     ):
         """
         Complete student identification process.
+
+        If the uploaded image contains multiple faces, each
+        detected face is processed independently.
         """
 
         # ==================================================
@@ -444,53 +496,7 @@ class IdentifyService:
             )
 
         # ==================================================
-        # 3. Select Best Face
-        # ==================================================
-
-        best_face = self.select_best_face(
-            faces
-        )
-
-        if best_face is None:
-
-            raise ValueError(
-                "Unable to select a face "
-                "from the uploaded image."
-            )
-
-        # ==================================================
-        # 4. Align Face
-        # ==================================================
-
-        aligned_face = self.align_face(
-            image,
-            best_face
-        )
-
-        if aligned_face is None:
-
-            raise ValueError(
-                "Unable to align the detected face."
-            )
-
-        # ==================================================
-        # 5. Generate ArcFace Embedding
-        # ==================================================
-
-        query_embedding = (
-            self.generate_query_embedding(
-                aligned_face
-            )
-        )
-
-        if query_embedding is None:
-
-            raise ValueError(
-                "Unable to generate face embedding."
-            )
-
-        # ==================================================
-        # 6. Check FAISS
+        # 3. Check FAISS
         # ==================================================
 
         if (
@@ -504,67 +510,195 @@ class IdentifyService:
             )
 
         # ==================================================
-        # 7. Search FAISS
+        # 4. Single Face
         # ==================================================
+        # Keep the existing single-face response exactly as
+        # before. Only group photos use the new multi-face
+        # response below.
 
-        matches = (
-            self.faiss.search_students(
-                query_embedding,
-                top_k=20,
-                student_limit=5,
+        if len(faces) == 1:
+
+            best_face = faces[0]
+
+            # ==================================================
+            # 5. Align Face
+            # ==================================================
+
+            aligned_face = self.align_face(
+                image,
+                best_face
             )
-        )
 
-        if not matches:
+            if aligned_face is None:
+
+                raise ValueError(
+                    "Unable to align the detected face."
+                )
+
+            # ==================================================
+            # 6. Generate ArcFace Embedding
+            # ==================================================
+
+            query_embedding = (
+                self.generate_query_embedding(
+                    aligned_face
+                )
+            )
+
+            if query_embedding is None:
+
+                raise ValueError(
+                    "Unable to generate face embedding."
+                )
+
+            # ==================================================
+            # 7. Search FAISS
+            # ==================================================
+
+            matches = (
+                self.faiss.search_students(
+                    query_embedding,
+                    top_k=20,
+                    student_limit=5,
+                )
+            )
+
+            if not matches:
+
+                return {
+                    "identified": False,
+
+                    "message":
+                        "No matching student found.",
+
+                    "similarity": 0.0,
+
+                    "best_similarity": 0.0,
+
+                    "threshold":
+                        float(
+                            SIMILARITY_THRESHOLD
+                        ),
+                }
+
+            # ==================================================
+            # 8. Get Best Match
+            # ==================================================
+
+            best_match = matches[0]
+
+            register_number = (
+                best_match[
+                    "register_number"
+                ]
+            )
+
+            final_score = (
+                best_match[
+                    "final_score"
+                ]
+            )
+
+            best_similarity = (
+                best_match[
+                    "best_similarity"
+                ]
+            )
+
+            matching_embeddings = (
+                best_match[
+                    "matching_embeddings"
+                ]
+            )
+
+            # ==================================================
+            # 9. Apply Similarity Threshold
+            # ==================================================
+
+            if final_score < SIMILARITY_THRESHOLD:
+
+                return {
+                    "identified": False,
+
+                    "message":
+                        "Face detected, but no "
+                        "sufficiently similar student "
+                        "was found.",
+
+                    "similarity":
+                        float(final_score),
+
+                    "best_similarity":
+                        float(best_similarity),
+
+                    "threshold":
+                        float(
+                            SIMILARITY_THRESHOLD
+                        ),
+
+                    "top_matches":
+                        matches,
+                }
+
+            # ==================================================
+            # 10. Retrieve Student From MySQL
+            # ==================================================
+
+            student = self.get_student(
+                db,
+                register_number
+            )
+
+            # ==================================================
+            # FAISS Match Exists But Database Record
+            # Does Not Exist
+            # ==================================================
+
+            if student is None:
+
+                return {
+                    "identified": False,
+
+                    "message":
+                        "FAISS identified a student, "
+                        "but student information was "
+                        "not found in the database.",
+
+                    # IMPORTANT:
+                    # Keep the register number visible
+                    # because FAISS successfully identified it.
+
+                    "register_number":
+                        register_number,
+
+                    "similarity":
+                        float(final_score),
+
+                    "best_similarity":
+                        float(best_similarity),
+
+                    "threshold":
+                        float(
+                            SIMILARITY_THRESHOLD
+                        ),
+
+                    "top_matches":
+                        matches,
+                }
+
+            # ==================================================
+            # 11. Return Final Result
+            # ==================================================
 
             return {
-                "identified": False,
-                "message": "No matching student found.",
-            }
 
-        # ==================================================
-        # 8. Get Best Match
-        # ==================================================
-
-        best_match = matches[0]
-
-        register_number = (
-            best_match[
-                "register_number"
-            ]
-        )
-
-        final_score = (
-            best_match[
-                "final_score"
-            ]
-        )
-
-        best_similarity = (
-            best_match[
-                "best_similarity"
-            ]
-        )
-
-        matching_embeddings = (
-            best_match[
-                "matching_embeddings"
-            ]
-        )
-
-        # ==================================================
-        # 9. Apply Similarity Threshold
-        # ==================================================
-
-        if final_score < SIMILARITY_THRESHOLD:
-
-            return {
-                "identified": False,
+                "identified": True,
 
                 "message":
-                    "Face detected, but no "
-                    "sufficiently similar student "
-                    "was found.",
+                    "Student identified successfully.",
+
+                "register_number":
+                    student.register_number,
 
                 "similarity":
                     float(final_score),
@@ -577,70 +711,249 @@ class IdentifyService:
                         SIMILARITY_THRESHOLD
                     ),
 
+                "matching_embeddings":
+                    int(
+                        matching_embeddings
+                    ),
+
+                "student":
+                    self.build_student_response(
+                        student
+                    ),
+
                 "top_matches":
                     matches,
             }
 
         # ==================================================
-        # 10. Retrieve Student From MySQL
+        # 12. Multiple Faces / Group Photo
         # ==================================================
 
-        student = self.get_student(
-            db,
-            register_number
-        )
+        results = []
 
-        if student is None:
+        for face_number, face in enumerate(
+            faces,
+            start=1
+        ):
 
-            return {
-                "identified": False,
+            # ==================================================
+            # 13. Align Current Face
+            # ==================================================
 
+            aligned_face = self.align_face(
+                image,
+                face
+            )
+
+            if aligned_face is None:
+
+                results.append({
+                    "face_number": face_number,
+                    "identified": False,
+                    "message":
+                        "Unable to align the detected face.",
+                    "similarity": 0.0,
+                    "best_similarity": 0.0,
+                    "threshold":
+                        float(
+                            SIMILARITY_THRESHOLD
+                        ),
+                })
+                continue
+
+            # ==================================================
+            # 14. Generate ArcFace Embedding
+            # ==================================================
+
+            query_embedding = (
+                self.generate_query_embedding(
+                    aligned_face
+                )
+            )
+
+            if query_embedding is None:
+
+                results.append({
+                    "face_number": face_number,
+                    "identified": False,
+                    "message":
+                        "Unable to generate face embedding.",
+                    "similarity": 0.0,
+                    "best_similarity": 0.0,
+                    "threshold":
+                        float(
+                            SIMILARITY_THRESHOLD
+                        ),
+                })
+                continue
+
+            # ==================================================
+            # 15. Search FAISS
+            # ==================================================
+
+            matches = (
+                self.faiss.search_students(
+                    query_embedding,
+                    top_k=20,
+                    student_limit=5,
+                )
+            )
+
+            if not matches:
+
+                results.append({
+                    "face_number": face_number,
+                    "identified": False,
+                    "message":
+                        "No matching student found.",
+                    "similarity": 0.0,
+                    "best_similarity": 0.0,
+                    "threshold":
+                        float(
+                            SIMILARITY_THRESHOLD
+                        ),
+                })
+                continue
+
+            # ==================================================
+            # 16. Get Best Match
+            # ==================================================
+
+            best_match = matches[0]
+
+            register_number = (
+                best_match[
+                    "register_number"
+                ]
+            )
+
+            final_score = (
+                best_match[
+                    "final_score"
+                ]
+            )
+
+            best_similarity = (
+                best_match[
+                    "best_similarity"
+                ]
+            )
+
+            matching_embeddings = (
+                best_match[
+                    "matching_embeddings"
+                ]
+            )
+
+            # ==================================================
+            # 17. Apply Similarity Threshold
+            # ==================================================
+
+            if final_score < SIMILARITY_THRESHOLD:
+
+                results.append({
+                    "face_number": face_number,
+                    "identified": False,
+                    "message":
+                        "Face detected, but no "
+                        "sufficiently similar student "
+                        "was found.",
+                    "similarity":
+                        float(final_score),
+                    "best_similarity":
+                        float(best_similarity),
+                    "threshold":
+                        float(
+                            SIMILARITY_THRESHOLD
+                        ),
+                    "top_matches": matches,
+                })
+                continue
+
+            # ==================================================
+            # 18. Retrieve Student From MySQL
+            # ==================================================
+
+            student = self.get_student(
+                db,
+                register_number
+            )
+
+            # ==================================================
+            # 19. FAISS Match Exists But Database Record
+            # Does Not Exist
+            # ==================================================
+
+            if student is None:
+
+                results.append({
+                    "face_number": face_number,
+                    "identified": False,
+                    "message":
+                        "FAISS identified a student, "
+                        "but student information was "
+                        "not found in the database.",
+                    "register_number":
+                        register_number,
+                    "similarity":
+                        float(final_score),
+                    "best_similarity":
+                        float(best_similarity),
+                    "threshold":
+                        float(
+                            SIMILARITY_THRESHOLD
+                        ),
+                    "top_matches": matches,
+                })
+                continue
+
+            # ==================================================
+            # 20. Add Identified Student Result
+            # ==================================================
+
+            results.append({
+                "face_number": face_number,
+                "identified": True,
                 "message":
-                    "FAISS identified a student, "
-                    "but student information was "
-                    "not found in the database.",
-
+                    "Student identified successfully.",
                 "register_number":
-                    register_number,
-
+                    student.register_number,
                 "similarity":
                     float(final_score),
-
                 "best_similarity":
                     float(best_similarity),
-            }
+                "threshold":
+                    float(
+                        SIMILARITY_THRESHOLD
+                    ),
+                "matching_embeddings":
+                    int(
+                        matching_embeddings
+                    ),
+                "student":
+                    self.build_student_response(
+                        student
+                    ),
+                "top_matches":
+                    matches,
+            })
 
         # ==================================================
-        # 11. Return Final Result
+        # 21. Return Group Photo Results
         # ==================================================
+
+        identified_count = sum(
+            1
+            for result in results
+            if result.get("identified") is True
+        )
 
         return {
-            "identified": True,
-
+            "identified": identified_count > 0,
             "message":
-                "Student identified successfully.",
-
-            "similarity":
-                float(final_score),
-
-            "best_similarity":
-                float(best_similarity),
-
-            "threshold":
-                float(
-                    SIMILARITY_THRESHOLD
-                ),
-
-            "matching_embeddings":
-                int(
-                    matching_embeddings
-                ),
-
-            "student":
-                self.build_student_response(
-                    student
-                ),
-
-            "top_matches":
-                matches,
+                f"Processed {len(faces)} faces. "
+                f"Identified {identified_count} student(s).",
+            "total_faces": len(faces),
+            "identified_faces": identified_count,
+            "results": results,
         }
